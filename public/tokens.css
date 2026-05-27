@@ -1,0 +1,140 @@
+/* ============================================================
+   NABERS PERFORM — Design tokens
+   Colors + Typography (foundations & semantic vars)
+   ============================================================ */
+
+/* ----- Fonts (Google Fonts — see README for substitution flag) ----- */
+@import url('https://fonts.googleapis.com/css2?family=Open+Sans:ital,wght@0,400;0,600;0,700;1,400&family=Varela+Round&display=swap');
+
+:root {
+  /* ============================================================
+     COLOR — Brand
+     ============================================================ */
+  --brand-primary:        rgb(0, 114, 152);   /* #007298 — buttons, links, accents */
+  --brand-primary-light:  rgb(0, 145, 179);   /* #0091B3 — gradient top, links on light bg */
+  --brand-primary-dark:   rgb(25, 106, 137);  /* #196A89 — logo gradient bottom (alt) */
+  --brand-tint:           rgb(230, 244, 247); /* #E6F4F7 — selected-row / soft chip */
+  --brand-mid:            rgb(26, 136, 163);  /* #1A88A3 — secondary fill */
+
+  /* Header gradient (used on top app bar + thumbnail card) */
+  --brand-gradient: linear-gradient(180deg, rgb(0,145,179) 0%, rgb(0,114,152) 100%);
+
+  /* ============================================================
+     COLOR — Neutrals (text + chrome)
+     ============================================================ */
+  --neutral-0:    rgb(255, 255, 255);  /* page bg, button labels on brand */
+  --neutral-50:   rgb(248, 247, 247);  /* #F8F7F7 — variant-info bg, light fill */
+  --neutral-100:  rgb(238, 235, 234);  /* #EEEBEA — table dividers, subtle fills */
+  --neutral-200:  rgb(221, 219, 218);  /* #DDDBDA — input borders */
+  --neutral-300:  rgb(217, 217, 217);  /* placeholder rectangles in anatomy diagrams */
+  --neutral-400:  rgb(190, 191, 193);  /* #BEBFC1 — page/card borders, completeness ring track */
+  --neutral-500:  rgb(147, 149, 151);  /* #939597 — muted icons */
+  --neutral-600:  rgb(95, 99, 104);    /* #5F6368 — H1–H4 + secondary body */
+  --neutral-700:  rgb(68, 68, 68);     /* #444 — Figma canvas chrome */
+  --neutral-800:  rgb(54, 54, 54);     /* #363636 — deep ink */
+  --ink:          rgb(32, 33, 36);     /* #202124 — primary body text */
+  --ink-soft:     rgb(0, 0, 0);
+
+  /* ============================================================
+     COLOR — Status / Feedback
+     ============================================================ */
+  --status-warning: rgb(234, 186, 0);   /* #EABA00 — star, attention */
+  --status-error:   rgb(222, 13, 13);   /* #DE0D0D — error text */
+  --status-info:    var(--brand-primary-light);
+
+  /* ============================================================
+     COLOR — Shadows (raw values from designs)
+     ============================================================ */
+  --shadow-card:    0px 4px 4px 0px rgba(0,0,0,0.25);
+  --shadow-popover: 0px 2px 6px 0px rgba(0,0,0,0.16);
+  --shadow-deep:    0px 8px 16px 0px rgba(0,0,0,0.30);
+
+  /* ============================================================
+     RADIUS
+     ============================================================ */
+  --radius-sm:  2px;   /* tables, cells */
+  --radius-md:  4px;   /* inputs, buttons */
+  --radius-lg:  5px;   /* page bounding box */
+  --radius-xl:  30px;  /* design-doc base frame */
+  --radius-full: 9999px;
+
+  /* ============================================================
+     SPACING (multiples observed in designs)
+     ============================================================ */
+  --space-1:  4px;
+  --space-2:  8px;
+  --space-3:  10px;
+  --space-4:  12px;
+  --space-5:  15px;
+  --space-6:  20px;
+  --space-7:  22px;
+  --space-8:  30px;
+  --space-9:  40px;
+
+  /* ============================================================
+     TYPOGRAPHY — Families
+     ============================================================ */
+  --font-display: 'Varela Round', 'Quicksand', system-ui, sans-serif; /* headings */
+  --font-body:    'Open Sans', 'Segoe UI', system-ui, sans-serif;     /* everything else */
+
+  /* ----- Type scale (raw sizes from designs) ----- */
+  --fs-display:  148px;  /* Display 1 / hero */
+  --fs-h1:        48px;
+  --fs-h2:        39px;
+  --fs-h3:        32px;
+  --fs-h4:        25px;
+  --fs-h5:        18px;  /* table & section headers */
+  --fs-body:      16px;  /* Open Sans body */
+  --fs-small:     13px;  /* footer copy, captions */
+  --fs-tiny:      12px;
+}
+
+/* ============================================================
+   SEMANTIC ELEMENT STYLES
+   ============================================================ */
+
+html, body {
+  font-family: var(--font-body);
+  font-size: var(--fs-body);
+  line-height: 1.4;
+  color: var(--ink);
+  background: var(--neutral-0);
+  -webkit-font-smoothing: antialiased;
+}
+
+h1, .h1,
+h2, .h2,
+h3, .h3,
+h4, .h4 {
+  font-family: var(--font-display);
+  color: var(--neutral-600);
+  font-weight: 400;
+  letter-spacing: 0.001px;
+  line-height: 1;
+  margin: 0;
+}
+
+.display { font-family: var(--font-display); font-size: var(--fs-display); color: var(--neutral-600); line-height: 1; }
+h1, .h1 { font-size: var(--fs-h1); }
+h2, .h2 { font-size: var(--fs-h2); }
+h3, .h3 { font-size: var(--fs-h3); }
+h4, .h4 { font-size: var(--fs-h4); }
+.h5    { font-family: var(--font-display); font-size: var(--fs-h5); color: var(--ink); }
+
+p, .body {
+  font-family: var(--font-body);
+  font-size: var(--fs-body);
+  color: var(--ink);
+  margin: 0 0 var(--space-4) 0;
+}
+
+.body-muted { color: var(--neutral-600); }
+.body-link  { color: var(--brand-primary-light); cursor: pointer; }
+.body-link:hover { text-decoration: underline; }
+
+.label { font-family: var(--font-body); font-size: var(--fs-body); color: var(--ink); }
+.label-bold { font-weight: 700; }
+
+.small  { font-size: var(--fs-small); }
+.tiny   { font-size: var(--fs-tiny); }
+.caption { font-size: var(--fs-small); color: var(--neutral-600); }
