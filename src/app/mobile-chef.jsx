@@ -44,7 +44,7 @@ export function MChefBrowse({ filters, setFilters, onOpenListing }) {
 
       {/* Sticky search/filter row */}
       <div style={{
-        position: 'sticky', top: 106, zIndex: 4, // 50 status + 56 top bar
+        position: 'sticky', top: 106, zIndex: 4,
         background: '#fff', borderBottom: '1px solid rgb(238,235,234)',
         padding: '10px 16px', display: 'flex', flexDirection: 'column', gap: 10,
       }}>
@@ -188,13 +188,19 @@ export function MFilterSheet({ filters, setFilters, onClose, resultCount }) {
 }
 
 export function MChefListingCard({ kitchen, onClick }) {
+  const { isSaved, toggle } = useSavedListings();
+  const saved = isSaved(kitchen.id);
   return (
     <div onClick={onClick} style={{ display: 'flex', flexDirection: 'column', gap: 8, cursor: 'pointer' }}>
       <div style={{ position: 'relative', aspectRatio: '5 / 3', borderRadius: 8, overflow: 'hidden', background: 'rgb(238,235,234)' }}>
         <img src={kitchen.photo} alt="" loading="lazy" style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }} />
-        <div style={{ position: 'absolute', top: 10, right: 10, background: 'rgba(255,255,255,0.92)', borderRadius: 999, padding: 7 }}>
-          <RAKIcon name="heart-outline" size={16} color="rgb(32,33,36)" />
-        </div>
+        <button type="button" onClick={(e) => { e.stopPropagation(); toggle(kitchen.id); }} style={{
+          position: 'absolute', top: 10, right: 10,
+          background: 'rgba(255,255,255,0.92)', borderRadius: 999, padding: 7,
+          border: 'none', cursor: 'pointer', lineHeight: 0,
+        }}>
+          <RAKIcon name={saved ? 'heart' : 'heart-outline'} size={16} color={saved ? 'rgb(222,13,13)' : 'rgb(32,33,36)'} />
+        </button>
       </div>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 8 }}>
         <span style={{ fontFamily: "'Open Sans', sans-serif", fontSize: 15, fontWeight: 700, color: 'rgb(32,33,36)', lineHeight: 1.3 }}>{kitchen.name}</span>
@@ -216,7 +222,10 @@ export function MChefListingCard({ kitchen, onClick }) {
    ============================================================ */
 export function MChefListingDetail({ kitchenId, onBack, onBook }) {
   const k = RAK_KITCHENS.find((x) => x.id === kitchenId);
+  const { isSaved, toggle } = useSavedListings();
+  const [showAllReviews, setShowAllReviews] = React.useState(false);
   if (!k) return null;
+  const saved = isSaved(k.id);
   return (
     <div style={{ flex: 1, display: 'flex', flexDirection: 'column', minHeight: 0, position: 'relative' }}>
       <div style={{ flex: 1, overflow: 'auto', paddingBottom: 110 }}>
@@ -226,8 +235,8 @@ export function MChefListingDetail({ kitchenId, onBack, onBook }) {
           <div style={{ position: 'absolute', top: 50, left: 16, right: 16, display: 'flex', justifyContent: 'space-between' }}>
             <RAKMobileBackButton onClick={onBack} onLight />
             <div style={{ display: 'flex', gap: 8 }}>
-              <button type="button" style={{ width: 36, height: 36, borderRadius: '50%', border: 'none', background: 'rgba(255,255,255,0.95)', boxShadow: '0 1px 3px rgba(0,0,0,0.2)', cursor: 'pointer' }}>
-                <RAKIcon name="heart-outline" size={16} color="rgb(32,33,36)" />
+              <button type="button" onClick={() => toggle(k.id)} style={{ width: 36, height: 36, borderRadius: '50%', border: 'none', background: 'rgba(255,255,255,0.95)', boxShadow: '0 1px 3px rgba(0,0,0,0.2)', cursor: 'pointer' }}>
+                <RAKIcon name={saved ? 'heart' : 'heart-outline'} size={16} color={saved ? 'rgb(222,13,13)' : 'rgb(32,33,36)'} />
               </button>
             </div>
           </div>
@@ -310,11 +319,14 @@ export function MChefListingDetail({ kitchenId, onBack, onBook }) {
               {k.rating} · {k.reviewCount} reviews
             </h3>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
-              {SAMPLE_REVIEWS.slice(0, 2).map((r) => <ListingReview key={r.id} review={r} />)}
+              {(showAllReviews ? SAMPLE_REVIEWS : SAMPLE_REVIEWS.slice(0, 2)).map((r) => <ListingReview key={r.id} review={r} />)}
             </div>
-            <span style={{ display: 'inline-flex', marginTop: 12, color: 'rgb(0,145,179)', fontFamily: "'Open Sans', sans-serif", fontSize: 14, fontWeight: 600 }}>
-              Show all {k.reviewCount} reviews
-            </span>
+            <button type="button" onClick={() => setShowAllReviews(!showAllReviews)} style={{
+              marginTop: 12, background: 'none', border: 'none', padding: 0, cursor: 'pointer',
+              color: 'rgb(0,145,179)', fontFamily: "'Open Sans', sans-serif", fontSize: 14, fontWeight: 600,
+            }}>
+              {showAllReviews ? 'Show fewer reviews' : `Show all ${k.reviewCount} reviews`}
+            </button>
           </div>
         </div>
       </div>
@@ -322,7 +334,7 @@ export function MChefListingDetail({ kitchenId, onBack, onBook }) {
       {/* Sticky bottom CTA */}
       <div style={{
         position: 'absolute', left: 0, right: 0, bottom: 0,
-        paddingBottom: 34, // home indicator
+        paddingBottom: 34,
         background: '#fff',
         borderTop: '1px solid rgb(238,235,234)',
         zIndex: 5,
@@ -467,43 +479,77 @@ function PricelineMobile({ label, value, bold }) {
    ============================================================ */
 export function MChefBookings({ onOpenListing }) {
   const myBookings = RAK_BOOKINGS.filter((b) => b.chefId === 'chef-001');
-  const upcoming = myBookings.filter((b) => ['confirmed', 'pending', 'in-progress'].includes(b.status));
-  const past = myBookings.filter((b) => ['completed', 'cancelled'].includes(b.status));
+  const [cancelledIds, setCancelledIds] = React.useState([]);
+  const [cancelId, setCancelId] = React.useState(null);
+
+  const upcoming = myBookings.filter((b) => ['confirmed', 'pending', 'in-progress'].includes(b.status) && !cancelledIds.includes(b.id));
+  const past = [
+    ...myBookings.filter((b) => ['completed', 'cancelled'].includes(b.status)),
+    ...myBookings.filter((b) => cancelledIds.includes(b.id)),
+  ];
 
   return (
     <>
       <RAKMobileTopBar title="My bookings" />
       <RAKMobileScreen>
         <RAKMobileSection title={`Upcoming (${upcoming.length})`}>
-          {upcoming.map((b) => <MBookingCard key={b.id} booking={b} onClick={() => onOpenListing(b.listingId)} />)}
+          {upcoming.length === 0 && (
+            <div style={{ padding: '16px 0', fontFamily: "'Open Sans', sans-serif", fontSize: 14, color: 'rgb(95,99,104)' }}>No upcoming bookings.</div>
+          )}
+          {upcoming.map((b) => (
+            <MBookingCard key={b.id} booking={b}
+              onClick={() => onOpenListing(b.listingId)}
+              onCancel={b.status !== 'in-progress' ? () => setCancelId(b.id) : null}
+            />
+          ))}
         </RAKMobileSection>
         {past.length > 0 && (
           <RAKMobileSection title={`Past (${past.length})`}>
-            {past.map((b) => <MBookingCard key={b.id} booking={b} onClick={() => onOpenListing(b.listingId)} />)}
+            {past.map((b) => (
+              <MBookingCard key={b.id} booking={b}
+                onClick={() => onOpenListing(b.listingId)}
+                forceCancelled={cancelledIds.includes(b.id)}
+              />
+            ))}
           </RAKMobileSection>
         )}
       </RAKMobileScreen>
+      {cancelId && (
+        <MBookingCancelModal
+          booking={myBookings.find((b) => b.id === cancelId)}
+          onClose={() => setCancelId(null)}
+          onConfirm={() => { setCancelledIds((c) => [...c, cancelId]); setCancelId(null); }}
+        />
+      )}
     </>
   );
 }
 
-function MBookingCard({ booking, onClick }) {
+function MBookingCard({ booking, onClick, onCancel, forceCancelled }) {
   const k = RAK_KITCHENS.find((x) => x.id === booking.listingId);
+  const effectiveStatus = forceCancelled ? 'cancelled' : booking.status;
   return (
-    <div onClick={onClick} style={{
-      background: '#fff', border: '1px solid rgb(238,235,234)', borderRadius: 8,
-      padding: 12, display: 'flex', gap: 12, cursor: 'pointer',
-    }}>
-      <img src={k.photo} alt="" style={{ width: 64, height: 64, borderRadius: 6, objectFit: 'cover', flexShrink: 0 }} />
-      <div style={{ display: 'flex', flexDirection: 'column', gap: 4, minWidth: 0, flex: 1 }}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', gap: 8 }}>
-          <span style={{ fontFamily: "'Open Sans', sans-serif", fontSize: 14, fontWeight: 700, color: 'rgb(32,33,36)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{k.name}</span>
-          <RAKStatusChip status={booking.status} />
+    <div style={{ background: '#fff', border: '1px solid rgb(238,235,234)', borderRadius: 8, overflow: 'hidden' }}>
+      <div onClick={onClick} style={{ padding: 12, display: 'flex', gap: 12, cursor: 'pointer' }}>
+        <img src={k.photo} alt="" style={{ width: 64, height: 64, borderRadius: 6, objectFit: 'cover', flexShrink: 0 }} />
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 4, minWidth: 0, flex: 1 }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', gap: 8 }}>
+            <span style={{ fontFamily: "'Open Sans', sans-serif", fontSize: 14, fontWeight: 700, color: 'rgb(32,33,36)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{k.name}</span>
+            <RAKStatusChip status={effectiveStatus} />
+          </div>
+          <span style={{ fontFamily: "'Open Sans', sans-serif", fontSize: 12, color: 'rgb(95,99,104)' }}>{k.suburb}, {k.city}</span>
+          <span style={{ fontFamily: "'Open Sans', sans-serif", fontSize: 13, color: 'rgb(32,33,36)' }}>{RAK_formatDate(booking.date)} · {booking.start} – {booking.end}</span>
+          <span style={{ fontFamily: "'Open Sans', sans-serif", fontSize: 13, color: 'rgb(32,33,36)' }}><span style={{ fontWeight: 700 }}>${booking.total}</span> · {booking.hours} hours</span>
         </div>
-        <span style={{ fontFamily: "'Open Sans', sans-serif", fontSize: 12, color: 'rgb(95,99,104)' }}>{k.suburb}, {k.city}</span>
-        <span style={{ fontFamily: "'Open Sans', sans-serif", fontSize: 13, color: 'rgb(32,33,36)' }}>{RAK_formatDate(booking.date)} · {booking.start} – {booking.end}</span>
-        <span style={{ fontFamily: "'Open Sans', sans-serif", fontSize: 13, color: 'rgb(32,33,36)' }}><span style={{ fontWeight: 700 }}>${booking.total}</span> · {booking.hours} hours</span>
       </div>
+      {onCancel && (
+        <div style={{ borderTop: '1px solid rgb(238,235,234)', padding: '8px 12px', display: 'flex', justifyContent: 'flex-end' }}>
+          <button type="button" onClick={onCancel} style={{
+            background: 'none', border: 'none', padding: 0, cursor: 'pointer',
+            fontFamily: "'Open Sans', sans-serif", fontSize: 13, color: 'rgb(222,13,13)', fontWeight: 600,
+          }}>Cancel booking</button>
+        </div>
+      )}
     </div>
   );
 }
@@ -600,11 +646,33 @@ function MThread({ thread, myId, onBack }) {
    ============================================================ */
 export function MChefProfile() {
   const me = RAK_USERS.find((u) => u.id === 'chef-001');
-  const { docs } = useChefCredentials();
+  const { docs, setDoc } = useChefCredentials();
   const [previewKey, setPreviewKey] = React.useState(null);
+  const [editing, setEditing] = React.useState(false);
+  const [showSettings, setShowSettings] = React.useState(false);
+
+  const handleCredentialClick = (key) => {
+    if (docs[key]) { setPreviewKey(key); return; }
+    const inp = document.createElement('input');
+    inp.type = 'file'; inp.accept = '.pdf,.jpg,.jpeg,.png';
+    inp.onchange = (e) => {
+      const file = e.target.files?.[0];
+      if (!file) return;
+      setDoc(key, { name: file.name, sizeKb: Math.round(file.size / 1024), uploadedAt: new Date().toISOString().slice(0, 10) });
+    };
+    inp.click();
+  };
+
+  if (editing) return <MChefProfileEdit me={me} onBack={() => setEditing(false)} />;
+  if (showSettings) return <MChefSettings onBack={() => setShowSettings(false)} />;
+
   return (
     <>
-      <RAKMobileTopBar title="Profile" trailing={<RAKIcon name="edit" size={18} color="rgb(0,114,152)" />} />
+      <RAKMobileTopBar title="Profile" trailing={
+        <button type="button" onClick={() => setEditing(true)} style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 4, lineHeight: 0 }}>
+          <RAKIcon name="edit" size={18} color="rgb(0,114,152)" />
+        </button>
+      } />
       <RAKMobileScreen>
         <div style={{ padding: '20px 16px 8px', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 12 }}>
           <div style={{
@@ -654,14 +722,14 @@ export function MChefProfile() {
                 <button
                   key={t.key}
                   type="button"
-                  onClick={() => onFile && setPreviewKey(t.key)}
+                  onClick={() => handleCredentialClick(t.key)}
                   style={{
                     display: 'flex', alignItems: 'center', gap: 10,
                     padding: 12, width: '100%',
                     borderRadius: 6,
                     border: onFile ? '1px solid rgb(238,235,234)' : '1px dashed rgb(221,219,218)',
                     background: onFile ? '#fff' : 'rgb(248,247,247)',
-                    cursor: onFile ? 'pointer' : 'default',
+                    cursor: 'pointer',
                     textAlign: 'left',
                     fontFamily: "'Open Sans', sans-serif",
                   }}>
@@ -671,27 +739,21 @@ export function MChefProfile() {
                     display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
                   }}>
                     <RAKIcon
-                      name={onFile ? 'shield' : 'file'}
+                      name={onFile ? 'shield' : 'upload'}
                       size={14}
                       color={onFile ? 'rgb(31,121,77)' : 'rgb(95,99,104)'} />
                   </div>
                   <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: 2, minWidth: 0 }}>
                     <span style={{ fontSize: 13, fontWeight: 700, color: 'rgb(32,33,36)' }}>{t.title}</span>
                     {onFile ? (
-                      <span style={{
-                        fontSize: 11, color: 'rgb(95,99,104)',
-                        overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
-                      }}>
-                        {doc.name}
-                        {doc.expiresAt && <> · to {RAK_formatDate(doc.expiresAt)}</>}
+                      <span style={{ fontSize: 11, color: 'rgb(95,99,104)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                        {doc.name}{doc.expiresAt && <> · to {RAK_formatDate(doc.expiresAt)}</>}
                       </span>
                     ) : (
-                      <span style={{ fontSize: 11, color: 'rgb(95,99,104)' }}>Not uploaded yet</span>
+                      <span style={{ fontSize: 11, color: 'rgb(0,114,152)' }}>Tap to upload</span>
                     )}
                   </div>
-                  {onFile && (
-                    <PerformIcon name="chevron-right" size={10} color="rgb(95,99,104)" />
-                  )}
+                  {onFile && <PerformIcon name="chevron-right" size={10} color="rgb(95,99,104)" />}
                 </button>
               );
             })}
@@ -709,7 +771,7 @@ export function MChefProfile() {
         </RAKMobileSection>
 
         <div style={{ padding: '8px 16px 24px' }}>
-          <PerformButton variant="base" style={{ width: '100%', justifyContent: 'center' }}>Settings</PerformButton>
+          <PerformButton variant="base" onClick={() => setShowSettings(true)} style={{ width: '100%', justifyContent: 'center' }}>Settings</PerformButton>
         </div>
       </RAKMobileScreen>
 
@@ -721,5 +783,148 @@ export function MChefProfile() {
           onClose={() => setPreviewKey(null)} />
       )}
     </>
+  );
+}
+
+/* ============================================================
+   MOBILE CHEF — PROFILE EDIT
+   ============================================================ */
+function MChefProfileEdit({ me, onBack }) {
+  const [name, setName] = React.useState(me.name);
+  const [specialty, setSpecialty] = React.useState(me.specialty);
+  const [bio, setBio] = React.useState(me.bio);
+  const [savedMsg, setSavedMsg] = React.useState(false);
+
+  const handleSave = () => {
+    try { localStorage.setItem('rak_chef_profile', JSON.stringify({ name, specialty, bio })); } catch (_) {}
+    setSavedMsg(true);
+    setTimeout(() => { setSavedMsg(false); onBack(); }, 900);
+  };
+
+  return (
+    <>
+      <RAKMobileTopBar
+        leading={<RAKMobileBackButton onClick={onBack} />}
+        title="Edit profile"
+        trailing={
+          <button type="button" onClick={handleSave} style={{
+            background: 'none', border: 'none', cursor: 'pointer',
+            fontFamily: "'Open Sans', sans-serif", fontSize: 14, fontWeight: 700,
+            color: savedMsg ? 'rgb(31,121,77)' : 'rgb(0,114,152)',
+          }}>
+            {savedMsg ? 'Saved ✓' : 'Save'}
+          </button>
+        }
+      />
+      <RAKMobileScreen>
+        <div style={{ padding: 16, display: 'flex', flexDirection: 'column', gap: 16 }}>
+          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 10 }}>
+            <div style={{
+              width: 80, height: 80, borderRadius: '50%',
+              background: 'linear-gradient(180deg, rgb(0,145,179) 0%, rgb(0,114,152) 100%)',
+              display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+              color: '#fff', fontFamily: "'Varela Round', sans-serif", fontSize: 32,
+            }}>{me.avatar}</div>
+            <button type="button" style={{ background: 'none', border: 'none', cursor: 'pointer', fontFamily: "'Open Sans', sans-serif", fontSize: 13, color: 'rgb(0,114,152)', fontWeight: 600 }}>
+              Change photo
+            </button>
+          </div>
+          <PerformField label="Full name" required width="100%" value={name} onChange={setName} />
+          <PerformField label="Specialty" width="100%" value={specialty} onChange={setSpecialty} />
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+            <PerformFieldLabel>About you</PerformFieldLabel>
+            <textarea value={bio} onChange={(e) => setBio(e.target.value)} rows={5}
+              style={{ width: '100%', borderRadius: 4, border: '1px solid rgb(221,219,218)', padding: '10px 12px', fontFamily: "'Open Sans', sans-serif", fontSize: 14, boxSizing: 'border-box', outline: 'none', resize: 'vertical', color: 'rgb(32,33,36)' }} />
+          </div>
+        </div>
+      </RAKMobileScreen>
+    </>
+  );
+}
+
+/* ============================================================
+   MOBILE CHEF — SETTINGS
+   ============================================================ */
+function MChefSettings({ onBack }) {
+  const [notifs, setNotifs] = React.useState({ bookingUpdates: true, messages: true, marketing: false });
+  const toggle = (k) => setNotifs((n) => ({ ...n, [k]: !n[k] }));
+
+  return (
+    <>
+      <RAKMobileTopBar leading={<RAKMobileBackButton onClick={onBack} />} title="Settings" />
+      <RAKMobileScreen bg="rgb(248,247,247)">
+        <RAKMobileSection title="Notifications">
+          {[
+            { key: 'bookingUpdates', label: 'Booking updates', sub: 'Confirmations, cancellations, reminders' },
+            { key: 'messages', label: 'New messages', sub: 'When a kitchen owner replies' },
+            { key: 'marketing', label: 'Tips & promotions', sub: 'News about new kitchens near you' },
+          ].map((item) => (
+            <div key={item.key} style={{ background: '#fff', border: '1px solid rgb(238,235,234)', borderRadius: 8, padding: '12px 14px', display: 'flex', alignItems: 'center', gap: 12 }}>
+              <div style={{ flex: 1 }}>
+                <div style={{ fontFamily: "'Open Sans', sans-serif", fontSize: 14, fontWeight: 600, color: 'rgb(32,33,36)' }}>{item.label}</div>
+                <div style={{ fontFamily: "'Open Sans', sans-serif", fontSize: 12, color: 'rgb(95,99,104)' }}>{item.sub}</div>
+              </div>
+              <button type="button" onClick={() => toggle(item.key)} style={{
+                width: 44, height: 26, borderRadius: 13, border: 'none', cursor: 'pointer', flexShrink: 0,
+                padding: 0, position: 'relative', transition: 'background 150ms',
+                background: notifs[item.key] ? 'rgb(0,114,152)' : 'rgb(221,219,218)',
+              }}>
+                <span style={{
+                  position: 'absolute', top: 3, width: 20, height: 20, borderRadius: '50%',
+                  background: '#fff', boxShadow: '0 1px 3px rgba(0,0,0,0.2)', transition: 'left 150ms',
+                  left: notifs[item.key] ? 21 : 3,
+                }} />
+              </button>
+            </div>
+          ))}
+        </RAKMobileSection>
+
+        <RAKMobileSection title="Account">
+          {[
+            { label: 'Change password', icon: 'lock' },
+            { label: 'Payment methods', icon: 'credit-card' },
+            { label: 'Privacy settings', icon: 'shield' },
+          ].map((item) => (
+            <div key={item.label} style={{ background: '#fff', border: '1px solid rgb(238,235,234)', borderRadius: 8, padding: 14, display: 'flex', alignItems: 'center', gap: 12, cursor: 'pointer' }}>
+              <RAKIcon name={item.icon} size={16} color="rgb(95,99,104)" />
+              <span style={{ flex: 1, fontFamily: "'Open Sans', sans-serif", fontSize: 14, color: 'rgb(32,33,36)', fontWeight: 600 }}>{item.label}</span>
+              <PerformIcon name="chevron-right" size={10} color="rgb(95,99,104)" />
+            </div>
+          ))}
+        </RAKMobileSection>
+
+        <div style={{ padding: '8px 16px 24px' }}>
+          <PerformButton variant="base" style={{ width: '100%', justifyContent: 'center', color: 'rgb(222,13,13)' }}>Delete account</PerformButton>
+        </div>
+      </RAKMobileScreen>
+    </>
+  );
+}
+
+/* ============================================================
+   MOBILE CHEF — CANCEL BOOKING MODAL
+   ============================================================ */
+function MBookingCancelModal({ booking, onClose, onConfirm }) {
+  const k = RAK_KITCHENS.find((x) => x.id === booking.listingId);
+  const isFree = booking.status === 'pending';
+  return (
+    <div style={{ position: 'absolute', inset: 0, zIndex: 40, background: 'rgba(0,0,0,0.5)', display: 'flex', flexDirection: 'column', justifyContent: 'flex-end' }}>
+      <div style={{ background: '#fff', borderTopLeftRadius: 16, borderTopRightRadius: 16, padding: 20, paddingBottom: 40, display: 'flex', flexDirection: 'column', gap: 16 }}>
+        <div>
+          <h3 style={{ fontFamily: "'Varela Round', sans-serif", fontSize: 20, color: 'rgb(32,33,36)', margin: '0 0 6px' }}>Cancel booking?</h3>
+          <p style={{ fontFamily: "'Open Sans', sans-serif", fontSize: 14, color: 'rgb(95,99,104)', margin: 0, lineHeight: 1.5 }}>
+            {k?.name} · {RAK_formatDate(booking.date)} · {booking.start}–{booking.end}
+          </p>
+        </div>
+        {isFree
+          ? <PerformInfoPanel tone="info">This booking hasn't been accepted yet — cancellation is free.</PerformInfoPanel>
+          : <PerformInfoPanel tone="warning">Cancellations after host approval may incur a fee per the {k?.cancellation} policy.</PerformInfoPanel>
+        }
+        <div style={{ display: 'flex', gap: 10 }}>
+          <PerformButton variant="base" onClick={onClose} style={{ flex: 1, justifyContent: 'center' }}>Keep booking</PerformButton>
+          <PerformButton variant="destructive" onClick={onConfirm} style={{ flex: 1, justifyContent: 'center' }}>Yes, cancel</PerformButton>
+        </div>
+      </div>
+    </div>
   );
 }
