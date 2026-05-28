@@ -14,7 +14,7 @@ import { RAKLogoMark, RAKWordmark } from './shell';
      route to the right view.
    ============================================================ */
 
-export function AuthScreen({ onSignIn }) {
+export function AuthScreen({ onSignIn, isMobile }) {
   const [mode, setMode] = React.useState('signin'); // 'signin' | 'signup'
   // After Save, we hold the pending signup until the user clicks the email link.
   // { firstName, lastName, email, phone, password, persona, verified }
@@ -39,22 +39,23 @@ export function AuthScreen({ onSignIn }) {
   return (
     <div style={{
       width: '100vw', height: '100vh',
-      display: 'grid', gridTemplateColumns: 'minmax(0, 1fr) minmax(0, 1fr)',
-      background: '#fff', overflow: 'hidden'
+      display: 'grid',
+      gridTemplateColumns: isMobile ? '1fr' : 'minmax(0, 1fr) minmax(0, 1fr)',
+      background: '#fff', overflow: 'hidden',
     }}>
       {/* LEFT — form panel */}
       <div style={{
         display: 'flex', flexDirection: 'column',
-        overflow: 'auto'
+        overflow: 'auto',
       }}>
-        <div style={{ padding: '24px 56px', borderBottom: '1px solid rgb(238,235,234)', display: 'flex', alignItems: 'center', gap: 12 }}>
+        <div style={{ padding: isMobile ? '20px 24px' : '24px 56px', borderBottom: '1px solid rgb(238,235,234)', display: 'flex', alignItems: 'center', gap: 12 }}>
           <RAKLogoMark size={28} />
           <RAKWordmark />
         </div>
 
         <div style={{
           flex: 1, display: 'flex', alignItems: 'flex-start', justifyContent: 'center',
-          padding: '48px 56px 64px'
+          padding: isMobile ? '24px 20px 48px' : '48px 56px 64px',
         }}>
           <div style={{ width: '100%', maxWidth: 460, display: 'flex', flexDirection: 'column', gap: 28 }}>
             {/* Tab toggle */}
@@ -93,8 +94,8 @@ export function AuthScreen({ onSignIn }) {
         </div>
       </div>
 
-      {/* RIGHT — brand panel */}
-      <AuthBrandPanel />
+      {/* RIGHT — brand panel (hidden on mobile) */}
+      {!isMobile && <AuthBrandPanel />}
 
       {/* Verify email modal */}
       {verifyModalOpen && pendingSignup &&

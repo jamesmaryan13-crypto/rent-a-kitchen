@@ -30,6 +30,16 @@ const TWEAK_DEFAULTS = {
   device: 'desktop',
 };
 
+function useRealMobile() {
+  const [mobile, setMobile] = React.useState(() => window.innerWidth < 768);
+  React.useEffect(() => {
+    const fn = () => setMobile(window.innerWidth < 768);
+    window.addEventListener('resize', fn);
+    return () => window.removeEventListener('resize', fn);
+  }, []);
+  return mobile;
+}
+
 export function RAKApp() {
   const [persona, setPersona] = React.useState('chef');
   const [chefView, setChefView] = React.useState('browse');
@@ -47,6 +57,7 @@ export function RAKApp() {
   });
 
   const [t, setTweak] = useTweaks(TWEAK_DEFAULTS);
+  const isRealMobile = useRealMobile();
 
   const handleSignIn = (p) => {
     setPersona(p);
@@ -61,7 +72,42 @@ export function RAKApp() {
   const handleSignOut = () => setTweak('signedIn', false);
 
   if (!t.signedIn) {
-    return <AuthScreen onSignIn={handleSignIn} />;
+    return <AuthScreen onSignIn={handleSignIn} isMobile={isRealMobile} />;
+  }
+
+  if (isRealMobile && persona !== 'admin') {
+    return (
+      <div className="rak-mobile-root" style={{ display: 'flex', flexDirection: 'column', background: 'rgb(238,235,234)', overflow: 'hidden' }}>
+        <div className="rak-mobile-topbar" style={{
+          flexShrink: 0,
+          background: 'linear-gradient(180deg, rgb(0,145,179) 0%, rgb(0,114,152) 100%)',
+          padding: '12px 20px',
+          display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+        }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+            <RAKLogoMark size={20} />
+            <RAKWordmark />
+          </div>
+          <button onClick={handleSignOut} style={{
+            background: 'rgba(255,255,255,0.2)', border: '1px solid rgba(255,255,255,0.35)',
+            borderRadius: 6, padding: '5px 12px', color: '#fff',
+            fontFamily: "'Open Sans', sans-serif", fontSize: 13, fontWeight: 600, cursor: 'pointer',
+          }}>Sign out</button>
+        </div>
+        <div style={{ flex: 1, minHeight: 0, overflow: 'hidden' }}>
+          <MobileRouter
+            persona={persona}
+            chefView={chefView} setChefView={setChefView}
+            ownerView={ownerView} setOwnerView={setOwnerView}
+            openListingId={openListingId} setOpenListingId={setOpenListingId}
+            bookingListingId={bookingListingId} setBookingListingId={setBookingListingId}
+            openBookingId={openBookingId} setOpenBookingId={setOpenBookingId}
+            filters={filters} setFilters={setFilters}
+            showOnboarding={false}
+          />
+        </div>
+      </div>
+    );
   }
 
   const effectiveDevice = (t.device === 'mobile' && persona === 'admin') ? 'desktop' : t.device;
