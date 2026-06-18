@@ -10,6 +10,7 @@ import { RAKIcon } from './icons';
 import { RAK_KITCHENS, RAK_BOOKINGS, RAK_USERS, RAK_THREADS } from './data';
 import { RAKMobileTopBar, RAKMobileTabBar, RAKMobileScreen, RAKMobileSection, RAKMobileBackButton, RAKMobileCard, RAK_MOBILE_TABS } from './mobile-shell';
 import { RAKStatusChip, RAK_formatDate, useSavedListings } from './shell';
+import { MChefCheckIn, MChefCheckOut, MChefActiveSession, useBookingStates } from './mobile-checkinout';
 import { FakeMap, RAK_EQUIPMENT_OPTIONS, RAK_CERT_OPTIONS } from './chef-views-1';
 import { SAMPLE_REVIEWS, ListingReview, useChefCredentials, RAKCredentialPreviewModal, RAK_CHEF_CREDENTIALS } from './chef-views-2';
 
@@ -477,43 +478,103 @@ function PricelineMobile({ label, value, bold }) {
 /* ============================================================
    MOBILE CHEF — MY BOOKINGS
    ============================================================ */
+const TODAY = new Date().toISOString().slice(0, 10);
+
 export function MChefBookings({ onOpenListing }) {
   const myBookings = RAK_BOOKINGS.filter((b) => b.chefId === 'chef-001');
   const [cancelledIds, setCancelledIds] = React.useState([]);
   const [cancelId, setCancelId] = React.useState(null);
+  const [activeScreen, setActiveScreen] = React.useState(null); // null | { type: 'checkin'|'checkout', bookingId }
+  const { effectiveStatus, isCheckedIn } = useBookingStates();
 
-  const upcoming = myBookings.filter((b) => ['confirmed', 'pending', 'in-progress'].includes(b.status) && !cancelledIds.includes(b.id));
+  if (activeScreen?.type === 'checkin') {
+    const booking = myBookings.find((b) => b.id === activeScreen.bookingId);
+    return <MChefCheckIn booking={booking} onBack={() => setActiveScreen(null)} onDone={() => setActiveScreen(null)} />;
+  }
+  if (activeScreen?.type === 'checkout') {
+    const booking = myBookings.find((b) => b.id === activeScreen.bookingId);
+    return <MChefCheckOut booking={booking} onBack={() => setActiveScreen(null)} onDone={() => setActiveScreen(null)} />;
+  }
+
+  const bookingsWithStatus = myBookings.map((b) => ({ ...b, _eff: effectiveStatus(b) }));
+  const upcoming = bookingsWithStatus.filter((b) => ['confirmed', 'pending', 'in-progress'].includes(b._eff) && !cancelledIds.includes(b.id));
   const past = [
-    ...myBookings.filter((b) => ['completed', 'cancelled'].includes(b.status)),
-    ...myBookings.filter((b) => cancelledIds.includes(b.id)),
+    ...bookingsWithStatus.filter((b) => ['completed', 'cancelled', 'awaiting-review', 'issue-reported'].includes(b._eff)),
+    ...bookingsWithStatus.filter((b) => cancelledIds.includes(b.id)),
   ];
+
+  // Any booking currently checked in
+  const activeBooking = bookingsWithStatus.find((b) => b._eff === 'in-progress' && isCheckedIn(b.id));
+  // Today's confirmed bookings eligible for check-in
+  const todayConfirmed = bookingsWithStatus.filter((b) => b._eff === 'confirmed' && b.date === TODAY);
 
   return (
     <>
       <RAKMobileTopBar title="My bookings" />
-      <RAKMobileScreen>
+      <RAKMobileScreen bg="rgb(248,247,247)">
+        {/* Active session (checked in) */}
+        {activeBooking && (
+          <MChefActiveSession
+            booking={activeBooking}
+            onCheckOut={() => setActiveScreen({ type: 'checkout', bookingId: activeBooking.id })}
+          />
+        )}
+
+        {/* Today — ready to check in */}
+        {todayConfirmed.length > 0 && !activeBooking && (
+          <div style={{ padding: '14px 16px 0' }}>
+            <h2 style={{ fontFamily: "'Varela Round', sans-serif", fontSize: 18, color: 'rgb(95,99,104)', margin: '0 0 10px' }}>Today</h2>
+            {todayConfirmed.map((b) => {
+              const k = RAK_KITCHENS.find((x) => x.id === b.listingId);
+              return (
+                <div key={b.id} style={{ background: '#fff', border: '1.5px solid rgb(0,114,152)', borderRadius: 10, overflow: 'hidden', marginBottom: 10 }}>
+                  <div style={{ background: 'linear-gradient(90deg, rgb(0,145,179) 0%, rgb(0,114,152) 100%)', padding: '6px 14px' }}>
+                    <span style={{ fontFamily: "'Open Sans', sans-serif", fontSize: 12, fontWeight: 700, color: '#fff', textTransform: 'uppercase', letterSpacing: 0.6 }}>Ready to check in</span>
+                  </div>
+                  <div style={{ padding: 14, display: 'flex', gap: 12, alignItems: 'center' }}>
+                    <img src={k?.photo} alt="" style={{ width: 56, height: 56, borderRadius: 6, objectFit: 'cover', flexShrink: 0 }} />
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <div style={{ fontFamily: "'Open Sans', sans-serif", fontSize: 14, fontWeight: 700, color: 'rgb(32,33,36)' }}>{k?.name}</div>
+                      <div style={{ fontFamily: "'Open Sans', sans-serif", fontSize: 12, color: 'rgb(95,99,104)', marginTop: 2 }}>{b.start} – {b.end} · {b.hours} hours</div>
+                    </div>
+                    <PerformButton variant="brand" onClick={() => setActiveScreen({ type: 'checkin', bookingId: b.id })} style={{ height: 36, fontSize: 13, padding: '0 14px', flexShrink: 0 }}>
+                      Check in
+                    </PerformButton>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        )}
+
         <RAKMobileSection title={`Upcoming (${upcoming.length})`}>
           {upcoming.length === 0 && (
             <div style={{ padding: '16px 0', fontFamily: "'Open Sans', sans-serif", fontSize: 14, color: 'rgb(95,99,104)' }}>No upcoming bookings.</div>
           )}
           {upcoming.map((b) => (
             <MBookingCard key={b.id} booking={b}
+              effectiveStatus={b._eff}
               onClick={() => onOpenListing(b.listingId)}
-              onCancel={b.status !== 'in-progress' ? () => setCancelId(b.id) : null}
+              onCancel={b._eff !== 'in-progress' ? () => setCancelId(b.id) : null}
+              onCheckIn={b._eff === 'confirmed' && b.date !== TODAY ? () => setActiveScreen({ type: 'checkin', bookingId: b.id }) : null}
+              onCheckOut={isCheckedIn(b.id) ? () => setActiveScreen({ type: 'checkout', bookingId: b.id }) : null}
             />
           ))}
         </RAKMobileSection>
+
         {past.length > 0 && (
           <RAKMobileSection title={`Past (${past.length})`}>
             {past.map((b) => (
               <MBookingCard key={b.id} booking={b}
+                effectiveStatus={cancelledIds.includes(b.id) ? 'cancelled' : b._eff}
                 onClick={() => onOpenListing(b.listingId)}
-                forceCancelled={cancelledIds.includes(b.id)}
               />
             ))}
           </RAKMobileSection>
         )}
+        <div style={{ height: 24 }} />
       </RAKMobileScreen>
+
       {cancelId && (
         <MBookingCancelModal
           booking={myBookings.find((b) => b.id === cancelId)}
@@ -525,9 +586,10 @@ export function MChefBookings({ onOpenListing }) {
   );
 }
 
-function MBookingCard({ booking, onClick, onCancel, forceCancelled }) {
+function MBookingCard({ booking, effectiveStatus: effStatus, onClick, onCancel, onCheckIn, onCheckOut }) {
   const k = RAK_KITCHENS.find((x) => x.id === booking.listingId);
-  const effectiveStatus = forceCancelled ? 'cancelled' : booking.status;
+  const status = effStatus ?? booking.status;
+  const hasActions = onCancel || onCheckIn || onCheckOut;
   return (
     <div style={{ background: '#fff', border: '1px solid rgb(238,235,234)', borderRadius: 8, overflow: 'hidden' }}>
       <div onClick={onClick} style={{ padding: 12, display: 'flex', gap: 12, cursor: 'pointer' }}>
@@ -535,19 +597,24 @@ function MBookingCard({ booking, onClick, onCancel, forceCancelled }) {
         <div style={{ display: 'flex', flexDirection: 'column', gap: 4, minWidth: 0, flex: 1 }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', gap: 8 }}>
             <span style={{ fontFamily: "'Open Sans', sans-serif", fontSize: 14, fontWeight: 700, color: 'rgb(32,33,36)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{k.name}</span>
-            <RAKStatusChip status={effectiveStatus} />
+            <RAKStatusChip status={status} />
           </div>
           <span style={{ fontFamily: "'Open Sans', sans-serif", fontSize: 12, color: 'rgb(95,99,104)' }}>{k.suburb}, {k.city}</span>
           <span style={{ fontFamily: "'Open Sans', sans-serif", fontSize: 13, color: 'rgb(32,33,36)' }}>{RAK_formatDate(booking.date)} · {booking.start} – {booking.end}</span>
           <span style={{ fontFamily: "'Open Sans', sans-serif", fontSize: 13, color: 'rgb(32,33,36)' }}><span style={{ fontWeight: 700 }}>${booking.total}</span> · {booking.hours} hours</span>
         </div>
       </div>
-      {onCancel && (
-        <div style={{ borderTop: '1px solid rgb(238,235,234)', padding: '8px 12px', display: 'flex', justifyContent: 'flex-end' }}>
-          <button type="button" onClick={onCancel} style={{
-            background: 'none', border: 'none', padding: 0, cursor: 'pointer',
-            fontFamily: "'Open Sans', sans-serif", fontSize: 13, color: 'rgb(222,13,13)', fontWeight: 600,
-          }}>Cancel booking</button>
+      {hasActions && (
+        <div style={{ borderTop: '1px solid rgb(238,235,234)', padding: '8px 12px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 8 }}>
+          {onCancel && (
+            <button type="button" onClick={onCancel} style={{ background: 'none', border: 'none', padding: 0, cursor: 'pointer', fontFamily: "'Open Sans', sans-serif", fontSize: 13, color: 'rgb(222,13,13)', fontWeight: 600 }}>Cancel</button>
+          )}
+          {onCheckIn && (
+            <PerformButton variant="brand-outline" onClick={onCheckIn} style={{ height: 32, fontSize: 13, padding: '0 12px', marginLeft: 'auto' }}>Check in</PerformButton>
+          )}
+          {onCheckOut && (
+            <PerformButton variant="brand" onClick={onCheckOut} style={{ height: 32, fontSize: 13, padding: '0 12px', marginLeft: 'auto' }}>Check out</PerformButton>
+          )}
         </div>
       )}
     </div>

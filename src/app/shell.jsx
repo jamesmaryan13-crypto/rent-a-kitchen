@@ -608,6 +608,8 @@ export function RAKStatusChip({ status }) {
   const map = {
     confirmed: { bg: 'rgb(230,244,247)', color: 'rgb(0,114,152)', label: 'Confirmed' },
     'in-progress': { bg: 'rgb(254,243,199)', color: 'rgb(146,99,0)', label: 'In progress' },
+    'awaiting-review': { bg: 'rgb(254,243,199)', color: 'rgb(146,99,0)', label: 'Review needed' },
+    'issue-reported': { bg: 'rgb(254,232,232)', color: 'rgb(222,13,13)', label: 'Issue reported' },
     pending: { bg: 'rgb(248,247,247)', color: 'rgb(95,99,104)', label: 'Pending' },
     completed: { bg: 'rgb(220,243,228)', color: 'rgb(31,121,77)', label: 'Completed' },
     cancelled: { bg: 'rgb(254,232,232)', color: 'rgb(222,13,13)', label: 'Cancelled' },

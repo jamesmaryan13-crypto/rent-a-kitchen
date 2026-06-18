@@ -13,6 +13,7 @@ import { RAKStatusChip, RAK_formatDate, RAKBlockDatesModal, RAKPauseListingModal
 import { RAK_EQUIPMENT_OPTIONS, RAK_CERT_OPTIONS } from './chef-views-1';
 import { OwnerRevenueChart } from './owner-views';
 import { MChefBookingFlow, MFilterChip, MChefListingDetail } from './mobile-chef';
+import { MOwnerPostStayReview, useBookingStates } from './mobile-checkinout';
 
 /* ============================================================
    MOBILE OWNER — DASHBOARD
@@ -22,6 +23,7 @@ export function MOwnerDashboard() {
   const myBookings = RAK_BOOKINGS.filter((b) => myListings.some((l) => l.id === b.listingId));
   const upcoming = myBookings.filter((b) => ['confirmed', 'pending'].includes(b.status));
   const pendingCount = myBookings.filter((b) => b.status === 'pending').length;
+  const reviewCount = myBookings.filter((b) => b.status === 'awaiting-review').length;
   const monthRevenue = myBookings.filter((b) => !['pending', 'cancelled'].includes(b.status)).reduce((s, b) => s + b.total, 0);
 
   return (
@@ -32,6 +34,20 @@ export function MOwnerDashboard() {
       />
       <RAKMobileScreen bg="rgb(248,247,247)">
         <div style={{ padding: '12px 16px', display: 'flex', flexDirection: 'column', gap: 14 }}>
+          {reviewCount > 0 && (
+            <div style={{
+              background: 'rgb(254,243,199)', border: '1px solid rgb(217,160,0)', borderRadius: 8,
+              padding: 14, display: 'flex', alignItems: 'center', gap: 12,
+              borderLeft: '4px solid rgb(217,160,0)',
+            }}>
+              <div style={{ width: 40, height: 40, borderRadius: '50%', background: 'rgba(217,160,0,0.2)', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', color: 'rgb(97,65,0)', fontFamily: "'Varela Round', sans-serif", fontSize: 18 }}>{reviewCount}</div>
+              <div style={{ flex: 1 }}>
+                <div style={{ fontFamily: "'Open Sans', sans-serif", fontSize: 14, fontWeight: 700, color: 'rgb(97,65,0)' }}>post-stay review{reviewCount > 1 ? 's' : ''} needed</div>
+                <div style={{ fontFamily: "'Open Sans', sans-serif", fontSize: 12, color: 'rgb(146,99,0)' }}>Confirm kitchen condition to release payment.</div>
+              </div>
+              <PerformIcon name="chevron-right" size={12} color="rgb(146,99,0)" />
+            </div>
+          )}
           {pendingCount > 0 && (
             <div style={{
               background: '#fff', border: '1px solid rgb(190,191,193)', borderRadius: 8,
@@ -162,10 +178,22 @@ export function MOwnerRequests() {
   const myListings = RAK_KITCHENS.filter((k) => k.ownerId === 'own-001');
   const allPending = RAK_BOOKINGS.filter((b) => myListings.some((l) => l.id === b.listingId) && b.status === 'pending');
   const confirmedBase = RAK_BOOKINGS.filter((b) => myListings.some((l) => l.id === b.listingId) && b.status === 'confirmed').slice(0, 3);
+  // Bookings awaiting owner post-stay review (from data or localStorage state)
+  const awaitingReviewBookings = RAK_BOOKINGS.filter((b) => myListings.some((l) => l.id === b.listingId) && b.status === 'awaiting-review');
 
   const [localStatuses, setLocalStatuses] = React.useState({});
   const [expanded, setExpanded] = React.useState(allPending[0]?.id);
   const [declineId, setDeclineId] = React.useState(null);
+  const [reviewBookingId, setReviewBookingId] = React.useState(null);
+  const { effectiveStatus, isCheckedOut, ownerConfirm } = useBookingStates();
+
+  // Also find bookings where chef has checked out via localStorage (dynamic)
+  const dynamicAwaitingReview = RAK_BOOKINGS.filter((b) =>
+    myListings.some((l) => l.id === b.listingId) &&
+    b.status !== 'awaiting-review' &&
+    isCheckedOut(b.id)
+  );
+  const allAwaitingReview = [...awaitingReviewBookings, ...dynamicAwaitingReview];
 
   const requests = allPending.filter((b) => !localStatuses[b.id]);
   const recentlyHandled = allPending.filter((b) => !!localStatuses[b.id]);
@@ -179,10 +207,61 @@ export function MOwnerRequests() {
     setDeclineId(null);
   };
 
+  if (reviewBookingId) {
+    const booking = allAwaitingReview.find((b) => b.id === reviewBookingId);
+    return (
+      <MOwnerPostStayReview
+        booking={booking}
+        onBack={() => setReviewBookingId(null)}
+        onDone={() => setReviewBookingId(null)}
+      />
+    );
+  }
+
   return (
     <>
       <RAKMobileTopBar title="Requests" />
       <RAKMobileScreen bg="rgb(248,247,247)">
+        {/* Post-stay reviews needed */}
+        {allAwaitingReview.length > 0 && (
+          <RAKMobileSection title={`Post-stay review (${allAwaitingReview.length})`}>
+            {allAwaitingReview.map((b) => {
+              const chef = RAK_USERS.find((u) => u.id === b.chefId);
+              const k = RAK_KITCHENS.find((x) => x.id === b.listingId);
+              const eff = effectiveStatus(b);
+              if (eff === 'completed' || eff === 'issue-reported') {
+                return (
+                  <div key={b.id} style={{ background: '#fff', border: '1px solid rgb(238,235,234)', borderRadius: 8, padding: 12, display: 'flex', alignItems: 'center', gap: 12 }}>
+                    <div style={{ width: 40, height: 40, borderRadius: '50%', background: 'rgb(0,114,152)', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', color: '#fff', fontFamily: "'Open Sans', sans-serif", fontWeight: 700, fontSize: 13, flexShrink: 0 }}>{chef?.avatar}</div>
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <div style={{ fontFamily: "'Open Sans', sans-serif", fontSize: 14, fontWeight: 700, color: 'rgb(32,33,36)' }}>{chef?.name}</div>
+                      <div style={{ fontFamily: "'Open Sans', sans-serif", fontSize: 12, color: 'rgb(95,99,104)' }}>{RAK_formatDate(b.date)} · {b.start}–{b.end}</div>
+                    </div>
+                    <RAKStatusChip status={eff} />
+                  </div>
+                );
+              }
+              return (
+                <div key={b.id} style={{ background: '#fff', border: '1.5px solid rgb(217,160,0)', borderRadius: 8, overflow: 'hidden' }}>
+                  <div style={{ background: 'rgb(254,243,199)', padding: '6px 14px' }}>
+                    <span style={{ fontFamily: "'Open Sans', sans-serif", fontSize: 12, fontWeight: 700, color: 'rgb(97,65,0)', textTransform: 'uppercase', letterSpacing: 0.5 }}>Review needed</span>
+                  </div>
+                  <div style={{ padding: 14, display: 'flex', alignItems: 'center', gap: 12 }}>
+                    <div style={{ width: 44, height: 44, borderRadius: '50%', background: 'rgb(0,114,152)', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', color: '#fff', fontFamily: "'Open Sans', sans-serif", fontWeight: 700, fontSize: 15, flexShrink: 0 }}>{chef?.avatar}</div>
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <div style={{ fontFamily: "'Open Sans', sans-serif", fontSize: 14, fontWeight: 700, color: 'rgb(32,33,36)' }}>{chef?.name} has checked out</div>
+                      <div style={{ fontFamily: "'Open Sans', sans-serif", fontSize: 12, color: 'rgb(95,99,104)', marginTop: 2 }}>{k?.name} · {RAK_formatDate(b.date)}</div>
+                    </div>
+                    <PerformButton variant="brand" onClick={() => setReviewBookingId(b.id)} style={{ height: 36, fontSize: 13, padding: '0 14px', flexShrink: 0 }}>
+                      Review
+                    </PerformButton>
+                  </div>
+                </div>
+              );
+            })}
+          </RAKMobileSection>
+        )}
+
         <RAKMobileSection title={`Pending (${requests.length})`}>
           {requests.length === 0 && (
             <PerformInfoPanel>No new requests right now.</PerformInfoPanel>

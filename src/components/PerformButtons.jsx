@@ -44,6 +44,11 @@ function Button({
       color: 'rgb(32,33,36)',
       borderColor: 'rgb(190,191,193)',
     },
+    destructive: {
+      background: 'rgb(222,13,13)',
+      color: '#fff',
+      borderColor: 'rgb(222,13,13)',
+    },
   };
 
   const hoverHandlers = !disabled && variant === 'brand'
@@ -60,6 +65,11 @@ function Button({
     ? {
         onMouseEnter: (e) => { e.currentTarget.style.background = 'rgb(248,247,247)'; },
         onMouseLeave: (e) => { e.currentTarget.style.background = '#fff'; },
+      }
+    : !disabled && variant === 'destructive'
+    ? {
+        onMouseEnter: (e) => { e.currentTarget.style.background = 'rgb(180,8,8)'; e.currentTarget.style.borderColor = 'rgb(180,8,8)'; },
+        onMouseLeave: (e) => { e.currentTarget.style.background = 'rgb(222,13,13)'; e.currentTarget.style.borderColor = 'rgb(222,13,13)'; },
       }
     : {};
 

@@ -282,6 +282,10 @@ export const RAK_USERS = [
 ];
 
 export const RAK_BOOKINGS = [
+  // Today's booking (2026-06-18) — used to demo check-in/check-out flow
+  { id: 'bk-1012', listingId: 'kit-001', chefId: 'chef-001', date: '2026-06-18', start: '09:00', end: '17:00', hours: 8, total: 680, status: 'confirmed' },
+  // Yesterday's booking — pre-seeded as awaiting owner post-stay review
+  { id: 'bk-1013', listingId: 'kit-001', chefId: 'chef-003', date: '2026-06-17', start: '07:00', end: '15:00', hours: 8, total: 680, status: 'awaiting-review' },
   { id: 'bk-1001', listingId: 'kit-001', chefId: 'chef-001', date: '2026-05-22', start: '06:00', end: '14:00', hours: 8, total: 680, status: 'confirmed' },
   { id: 'bk-1002', listingId: 'kit-002', chefId: 'chef-004', date: '2026-05-18', start: '22:00', end: '06:00', hours: 8, total: 480, status: 'in-progress' },
   { id: 'bk-1003', listingId: 'kit-003', chefId: 'chef-001', date: '2026-05-29', start: '09:00', end: '13:00', hours: 4, total: 300, status: 'pending' },
