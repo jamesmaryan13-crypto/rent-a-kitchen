@@ -5,6 +5,7 @@ import { PerformField, PerformCheckbox, PerformFieldLabel } from '../components/
 import { PerformInfoPanel } from '../components/PerformDisplay';
 import { RAKIcon } from './icons';
 import { RAKLogoMark, RAKWordmark } from './shell';
+import { supabase } from '../lib/supabase';
 
 /* ============================================================
    AUTHENTICATION — shared login + sign-up gate
@@ -22,6 +23,11 @@ export function AuthScreen({ onSignIn, isMobile }) {
   const [verifyModalOpen, setVerifyModalOpen] = React.useState(false);
 
   const handleSignupSave = (data) => {
+    if (data.directSignIn) {
+      // Supabase signUp succeeded + email confirmation off — sign in directly
+      onSignIn(data.persona);
+      return;
+    }
     setPendingSignup({ ...data, verified: false });
     setVerifyModalOpen(true);
   };
@@ -75,7 +81,7 @@ export function AuthScreen({ onSignIn, isMobile }) {
                   onSwitch={() => setMode('signup')}
                   pendingSignup={pendingSignup}
                   onResendVerify={() => setVerifyModalOpen(true)} />
-              : <SignUpForm onComplete={handleSignupSave} onSwitch={() => setMode('signin')} />
+              : <SignUpForm onComplete={handleSignupSave} onSwitch={() => setMode('signin')} onDirectSignIn={onSignIn} />
             }
           </div>
         </div>
@@ -133,13 +139,13 @@ function AuthTab({ active, onClick, children }) {
    SIGN IN
    ============================================================ */
 function SignInForm({ onSignIn, onSwitch, pendingSignup, onResendVerify }) {
-  const prefilledEmail = pendingSignup ? pendingSignup.email : 'mia.tanaka@example.com';
+  const prefilledEmail = pendingSignup ? pendingSignup.email : '';
   const [email, setEmail] = React.useState(prefilledEmail);
-  const [password, setPassword] = React.useState(pendingSignup ? '' : 'demo1234');
+  const [password, setPassword] = React.useState('');
   const [remember, setRemember] = React.useState(true);
   const [error, setError] = React.useState(null);
+  const [loading, setLoading] = React.useState(false);
 
-  // Reset prefill if the pending signup changes (e.g. after verify).
   React.useEffect(() => {
     if (pendingSignup) {
       setEmail(pendingSignup.email);
@@ -147,7 +153,6 @@ function SignInForm({ onSignIn, onSwitch, pendingSignup, onResendVerify }) {
     }
   }, [pendingSignup && pendingSignup.email, pendingSignup && pendingSignup.verified]);
 
-  // Infer persona from the demo email so submit can route correctly.
   const inferPersona = (e) => {
     const v = (e || '').toLowerCase();
     if (v.includes('owner') || v.includes('eleanor') || v.includes('ben')) return 'owner';
@@ -155,19 +160,26 @@ function SignInForm({ onSignIn, onSwitch, pendingSignup, onResendVerify }) {
     return 'chef';
   };
 
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     if (e && e.preventDefault) e.preventDefault();
     if (!email || !password) { setError('Enter both email and password to sign in.'); return; }
-    // Block unverified signups.
+
     if (pendingSignup && pendingSignup.email.toLowerCase() === email.toLowerCase() && !pendingSignup.verified) {
       setError('Please verify your email address before signing in. Check your inbox for the link we sent.');
       return;
     }
-    // If signing in with a freshly-verified account, honour its persona.
-    const persona = pendingSignup && pendingSignup.email.toLowerCase() === email.toLowerCase()
-      ? pendingSignup.persona
-      : inferPersona(email);
-    onSignIn(persona);
+    if (pendingSignup && pendingSignup.email.toLowerCase() === email.toLowerCase() && pendingSignup.verified) {
+      onSignIn(pendingSignup.persona);
+      return;
+    }
+
+    setLoading(true);
+    setError(null);
+    const { data, error: authError } = await supabase.auth.signInWithPassword({ email, password });
+    setLoading(false);
+    if (authError) { setError(authError.message); return; }
+    const role = data.user?.user_metadata?.role || inferPersona(email);
+    onSignIn(role);
   };
 
   return (
@@ -211,7 +223,9 @@ function SignInForm({ onSignIn, onSwitch, pendingSignup, onResendVerify }) {
         </div>
       </div>
 
-      <PerformButton variant="brand" onClick={handleSubmit} style={{ height: 44, fontSize: 16 }}>Sign in</PerformButton>
+      <PerformButton variant="brand" onClick={handleSubmit} disabled={loading} style={{ height: 44, fontSize: 16 }}>
+        {loading ? 'Signing in…' : 'Sign in'}
+      </PerformButton>
 
       <div style={{
         display: 'flex', alignItems: 'center', gap: 12,
@@ -293,13 +307,14 @@ function DemoButton({ icon, label, sub, onClick }) {
 /* ============================================================
    SIGN UP — step 1 persona tiles, step 2 details
    ============================================================ */
-function SignUpForm({ onComplete, onSwitch }) {
+function SignUpForm({ onComplete, onDirectSignIn, onSwitch }) {
   const [step, setStep] = React.useState(1);
   const [persona, setPersona] = React.useState(null);
   const [form, setForm] = React.useState({
     firstName: '', lastName: '', email: '', phone: '', password: '', agree: false
   });
   const [error, setError] = React.useState(null);
+  const [loading, setLoading] = React.useState(false);
   const set = (k, v) => setForm((f) => ({ ...f, [k]: v }));
 
   const handlePickPersona = (p) => {
@@ -307,21 +322,39 @@ function SignUpForm({ onComplete, onSwitch }) {
     setStep(2);
   };
 
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     if (e && e.preventDefault) e.preventDefault();
     if (!form.firstName || !form.lastName) return setError('Enter your first and last name.');
     if (!form.email || !form.email.includes('@')) return setError('Enter a valid email address.');
     if (!form.phone) return setError('Enter a phone number we can reach you on.');
     if (!form.password || form.password.length < 8) return setError('Choose a password with at least 8 characters.');
     if (!form.agree) return setError('You need to accept the terms before continuing.');
-    onComplete({
-      firstName: form.firstName,
-      lastName: form.lastName,
+
+    setLoading(true);
+    setError(null);
+    const { data, error: authError } = await supabase.auth.signUp({
       email: form.email,
-      phone: form.phone,
       password: form.password,
-      persona
+      options: {
+        data: {
+          first_name: form.firstName,
+          last_name: form.lastName,
+          phone: form.phone,
+          role: persona,
+        }
+      }
     });
+    setLoading(false);
+
+    if (authError) { setError(authError.message); return; }
+
+    if (data.session) {
+      // Email confirmation is disabled — session is live, sign in directly
+      onDirectSignIn(persona);
+    } else {
+      // Email confirmation is on — show verify modal
+      onComplete({ firstName: form.firstName, lastName: form.lastName, email: form.email, phone: form.phone, password: form.password, persona });
+    }
   };
 
   if (step === 1) {
@@ -403,8 +436,8 @@ function SignUpForm({ onComplete, onSwitch }) {
         </div>
       </div>
 
-      <PerformButton variant="brand" onClick={handleSubmit} style={{ height: 44, fontSize: 16 }}>
-        Save
+      <PerformButton variant="brand" onClick={handleSubmit} disabled={loading} style={{ height: 44, fontSize: 16 }}>
+        {loading ? 'Creating account…' : 'Create account'}
       </PerformButton>
 
       <span style={{ fontFamily: "'Open Sans', sans-serif", fontSize: 13, color: 'rgb(95,99,104)', textAlign: 'center', lineHeight: 1.5 }}>

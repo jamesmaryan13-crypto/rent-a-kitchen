@@ -1,5 +1,6 @@
 import React from 'react';
 
+import { supabase } from '../lib/supabase';
 import { useTweaks, TweaksPanel, TweakSection, TweakRadio, TweakToggle } from '../tweaks-panel';
 import { AuthScreen } from './auth';
 import {
@@ -69,7 +70,22 @@ export function RAKApp() {
     setOpenBookingId(null);
     setTweak('signedIn', true);
   };
-  const handleSignOut = () => setTweak('signedIn', false);
+
+  const handleSignOut = async () => {
+    await supabase.auth.signOut();
+    setTweak('signedIn', false);
+  };
+
+  // Restore session on page load so users stay signed in across refreshes
+  React.useEffect(() => {
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      if (session && !t.signedIn) {
+        const role = session.user?.user_metadata?.role;
+        handleSignIn(['chef', 'owner', 'admin'].includes(role) ? role : 'chef');
+      }
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   if (!t.signedIn) {
     return <AuthScreen onSignIn={handleSignIn} isMobile={isRealMobile} />;
